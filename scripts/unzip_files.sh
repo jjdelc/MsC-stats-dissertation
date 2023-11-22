@@ -1,5 +1,6 @@
 #!/bin/bash
 
+cd ENAHO
 for year in {2010..2022}; do
   cd $year
   for zip in *.zip; do

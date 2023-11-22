@@ -10,7 +10,7 @@ The output will be a print of `wget` commands to download all the files.
 Here's the usage to download files from years 2010 to 2022:
 
 
-[ENAHO] python3 stripurls.py 2022 2021 2020 2019 2018 2017 2016 2015 2014 2013 2012 2011 2010                                                                 <freya>
+[ENAHO] python3 ./stripurls.py 2022 2021 2020 2019 2018 2017 2016 2015 2014 2013 2012 2011 2010                                                                 <freya>
 INFO:root:Processing year: 2022
 INFO:root:Processing year: 2021
 INFO:root:Processing year: 2020
@@ -41,6 +41,7 @@ wget -i ./2010/urls.txt -P 2010
 
 import sys
 import logging
+from os.path import join
 from urllib.parse import urljoin
 from urllib.request import urlopen, Request
 
@@ -56,6 +57,9 @@ FETCH_URL = "/microdatos/cambiaPeriodo.asp"
 # This is the required payload that needs to have the
 # year added to obtain the files table from FETCH_URL
 PAYLOAD = "bandera=1&_cmbEncuesta=Condiciones%20de%20Vida%20y%20Pobreza%20-%20ENAHO&_cmbAnno={}&_cmbTrimestre=55"
+
+# The folder where the data will be downloaded
+DATA_PATH = "./ENAHO/"
 
 
 def strip_link(line):
@@ -113,7 +117,7 @@ def write_url_files(urls_per_year):
 	"""
 	year_files = []
 	for year, urls in urls_per_year.items():
-		output_file = "{}/urls.txt".format(year)
+		output_file = join(DATA_PATH, "{}/urls.txt".format(year))
 		with open(output_file, "w") as fh:
 			fh.write("\n".join(urls))
 			fh.write("\n")  # Extra EOL
@@ -129,10 +133,10 @@ def download_year_files(year_files):
 
 	# -i argument for the URLs input file
 	# -P parameter for output directory
-	WGET = "wget -i ./{} -P {}"
+	WGET = "wget -i {} -P {}"
 	commands = []
 	for year, year_file in year_files:
-		commands.append(WGET.format(year_file, year))
+		commands.append(WGET.format(year_file, join(DATA_PATH, year)))
 	
 	return commands
 
