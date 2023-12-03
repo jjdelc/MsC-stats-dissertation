@@ -7,9 +7,129 @@ import pyreadstat
 import savReaderWriter as spss
 from pathlib import Path
 from collections import defaultdict
+from typing import List
 
 
 DATA_DIR = "./ENAHO/"
+
+MODULE_NAMES = {
+  "01": {
+    "modulo": "Características de la Vivienda y del Hogar",
+    "module": "Housing and Household Characteristics"
+  },
+  "02": {
+    "modulo": "Características de los Miembros del Hogar",
+    "module": "Household Members Characteristics"
+  },
+  "03": {
+    "modulo": "Educación",
+    "module": "Education"
+  },
+  "04": {
+    "modulo": "Salud",
+    "module": "Health"
+  },
+  "05": {
+    "modulo": "Empleo e Ingresos",
+    "module": "Employment and Income"
+  },
+  "07": {
+    "modulo": "Gastos en Alimentos y Bebidas (Módulo 601)",
+    "module": "Food and Beverage Expenditures (Module 601)"
+  },
+  "08": {
+    "modulo": "Instituciones Beneficas",
+    "module": "Charitable Institutions"
+  },
+  "09": {
+    "modulo": "Mantenimiento de la Vivienda",
+    "module": "Housing Maintenance"
+  },
+  "10": {
+    "modulo": "Transportes y Comunicaciones",
+    "module": "Transportation and Communications"
+  },
+  "11": {
+    "modulo": "Servicios a la Vivienda",
+    "module": "Housing Services"
+  },
+  "12": {
+    "modulo": "Esparcimiento, Diversion y Servicios de Cultura",
+    "module": "Recreation, Entertainment, and Cultural Services"
+  },
+  "13": {
+    "modulo": "Vestido y Calzado",
+    "module": "Clothing and Footwear"
+  },
+  "15": {
+    "modulo": "Gastos de Transferencias",
+    "module": "Transfer Expenditures"
+  },
+  "16": {
+    "modulo": "Muebles y Enseres",
+    "module": "Furniture and Equipment"
+  },
+  "17": {
+    "modulo": "Otros Bienes y Servicios",
+    "module": "Other Goods and Services"
+  },
+  "18": {
+    "modulo": "Equipamiento del Hogar",
+    "module": "Household Appliances"
+  },
+  "22": {
+    "modulo": "Producción Agrídcola",
+    "module": "Agricultural Production"
+  },
+  "23": {
+    "modulo": "Subproductos Agricolas",
+    "module": "Agricultural By-Products"
+  },
+  "24": {
+    "modulo": "Producción Forestal",
+    "module": "Forest Production"
+  },
+  "25": {
+    "modulo": "Gastos en Actividades Agricolas y/o Forestales",
+    "module": "Expenditures on Agricultural and/or Forestry Activities"
+  },
+  "26": {
+    "modulo": "Producción Pecuaria",
+    "module": "Livestock Production"
+  },
+  "27": {
+    "modulo": "Subproductos Pecuarios",
+    "module": "Livestock By-Products"
+  },
+  "28": {
+    "modulo": "Gastos en Actividades Pecuarias",
+    "module": "Expenditures on Livestock Activities"
+  },
+  "34": {
+    "modulo": "Sumarias (Variables Calculadas)",
+    "module": "Summaries (Calculated Variables)"
+  },
+  "37": {
+    "modulo": "Programas Sociales (Miembros del Hogar)",
+    "module": "Social Programs (Household Members)"
+  },
+  "77": {
+    "modulo": "Ingresos del Trabajador Independiente",
+    "module": "Self-Employed Income"
+  },
+  "78": {
+    "modulo": "Bienes y Servicios de Cuidados Personales",
+    "module": "Personal Care Goods and Services"
+  },
+  "84": {
+    "modulo": "Participación Ciudadana",
+    "module": "Citizen Participation"
+  },
+  "85": {
+    "modulo": "Gobernabilidad, Democracia y Transparencia",
+    "module": "Governance, Democracy, and Transparency"
+  }
+}
 
 
 class SurveyFile:
@@ -19,13 +139,14 @@ class SurveyFile:
     do a full file read if required for a data frame.
     """
 
-    ENC = "latin-1"  # Files encoding
+    ENC = "latin-1"  # Files' encoding
 
     def __init__(self, year, module, filepath):
         self.filepath = filepath
         self.filename = Path(filepath).name
         self.year = year
         self.module = module
+        self.description = MODULE_NAMES[module]["module"]
         self._sav = None
         self._meta = None
         self._data = None
@@ -114,6 +235,20 @@ class SurveyReader:
                         if "ENAHO-TABLA" in filename:
                             continue
 
+                        # File 300A is an special annex for parents satisfaction
+                        # about childrens education
+                        # 602A contains questions for kids below 14 about meals
+                        # obtained from beneficiaries outside of home
+                        # 2000A are details about fish livestock activities
+                        # 700A are details about food help obtained (if any)
+                        # 700B are details about non-food help obtained (if any)
+                        excluded_files = [
+                            "300A", "300a", "602A", "602a", "2000A", "2000a", 
+                            "700A", "700B", "700a", "700b"
+                        ]
+                        if any(x in filename for x in excluded_files):
+                            continue
+
 
                         spss_files[year_dir].append(os.path.join(module_path, filename))
                         break
@@ -123,6 +258,13 @@ class SurveyReader:
     @property
     def years(self):
         return sorted(self._files)
+    
+    @property
+    def available_modules(self):
+        modules = set()
+        for year in self.years:
+            modules.update(self._files[year])
+        return sorted(modules)
 
     def modules(self, year):
         return sorted(self._files[year])
@@ -149,7 +291,7 @@ class SurveyReader:
             spss_handlers[year] = year_handlers
         return spss_handlers
 
-    def get_file(self, year, module):
+    def get_file(self, year, module) -> SurveyFile:
         if not isinstance(year, str):
             year = str(year)  # "2022"
         
@@ -157,6 +299,33 @@ class SurveyReader:
             module = "{:02}".format(module)  # "07"
 
         return self._files[year][module]
+
+    # These demographic columns are common in all survey files. These can be
+    # used to perform joins.
+    DEMOGRAPHIC_COLUMNS = ['AÑO', 'MES', 'CONGLOME', 'VIVIENDA', 'HOGAR', 'UBIGEO', 'DOMINIO']
+
+    def data_columns(self, module, q_names: List[str], include_demographics=True):
+        """
+        Returns a DataFrame with the stacking of the requested
+        question for all files available.
+
+        if `include_demographics` is True, the necessary demographics
+        questions will be included.
+        """
+        columns = q_names[:]
+        if include_demographics:
+            columns = self.DEMOGRAPHIC_COLUMNS + columns
+        segments = []
+
+        for year in self.years:
+            survey_file = self.get_file(year, module)
+            try:
+                segments.append(survey_file.data[columns])
+            except KeyError:
+                raise KeyError(year)
+
+        result = pd.concat(segments, ignore_index=True)
+        return result
 
 
 
@@ -175,7 +344,7 @@ class Reporter:
         all_modules = {val for sublist in all_modules for val in sublist}
         all_modules = sorted(all_modules)
 
-        data = {"module": all_modules}
+        data = {"modulo": all_modules}
         data.update({y: [] for y in years})
         for y in years:
             year_data = data[y]
@@ -197,7 +366,7 @@ class Reporter:
         all_modules = {val for sublist in all_modules for val in sublist}
         all_modules = sorted(all_modules)
 
-        data = {"module": all_modules}
+        data = {"modulo": all_modules}
         data.update({y: [] for y in years})
         for y in years:
             year_data = data[y]
@@ -218,7 +387,88 @@ class Reporter:
         This returns a DataFrame to visualize which variables
         are common and what changed across years.
         """
-        raise NotImplementedError()
+        columns_by_year = []
+        all_columns = set()
+        for year in self.survey.years:
+            year_file = self.survey.get_file(year, module)
+            columns_by_year.append((year, year_file.meta.column_names))
+            all_columns.update(year_file.meta.column_names)
+
+        all_columns = sorted(all_columns)
+        data = []
+        for year, cols in columns_by_year:
+            cols = set(cols)
+            year_row = [year] + ["X" if c in cols else "" for c in all_columns]
+            data.append(year_row)
+
+        df = pd.DataFrame(data=data, columns=["year"] + all_columns)
+        return df
+
+    def common_columns(self, module):
+        """
+        The idea is to know which are the columns that are
+        present in all years surveys.
+        """
+        columns_by_year = []
+        all_columns = set()
+        for year in self.survey.years:
+            year_survey = self.survey.get_file(year, module)
+            year_cols = year_survey.meta.column_names
+            all_columns.update(year_cols)
+            columns_by_year.append(year_cols)
+
+        for year_cols in columns_by_year:
+            all_columns = all_columns.intersection(year_cols)
+
+        return sorted(all_columns)
+
+    def all_questions(self):
+        questions_by_module = defaultdict(dict)
+
+        for year in self.survey.years:
+            modules_for_year = self.survey.modules(year)
+            for module in modules_for_year:
+                survey_file = self.survey.get_file(year, module)
+                col_2_label = survey_file.meta.column_names_to_labels
+                col_2_label = {k.upper(): (v or "").replace("\n", "") for k, v in col_2_label.items()}
+                questions_by_module[module].update(col_2_label)
+
+        data = [["Module", "Q. Name", "Q. Label"]]
+        for module, question_labels in questions_by_module.items():
+            for q_name, q_label in sorted(question_labels.items()):
+                row = [module, q_name, q_label]
+                data.append(row)
+
+        from io import StringIO
+        fh = StringIO()
+        from csv import writer 
+        w = writer(fh)
+        w.writerows(data)
+        fh.seek(0)
+        return fh
+
+
+    def all_filenames(self, filter_year=None, filter_module=None):
+        """
+        This will list all the .pdf files used for each survey.
+        This may help see any weird file outside the pattern of files.
+        """
+        result = []
+        survey = self.survey
+        for year in survey.years:
+            for module in survey.modules(year):
+                survey_file = survey.get_file(year, module)
+                result.append((year, module, survey_file.filename))
+
+        df = pd.DataFrame(data=result, columns=["year", "module", "filename"])
+
+        if filter_year:
+            df = df[df.year==filter_year]
+
+        if filter_module:
+            df = df[df.module==filter_module]
+
+        return df.sort_values(by=["module", "year"])
 
 
 
@@ -227,5 +477,9 @@ if __name__ == '__main__':
     survey.read_files()
     reporter = Reporter(survey)
     yearly_modules = reporter.yearly_modules()
-    yearly_cols = reporter.modules_cols()
+    yearly_cols = reporter.modules_dims("cols")
+    filenames = reporter.all_filenames()
+    # all_questions_report = reporter.all_questions()
+    s_file = survey.get_file(2022, 3)
+    # stack = survey.data_columns("03", ["P300N", "P300I"])
     import pdb;pdb.set_trace()

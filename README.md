@@ -22,6 +22,29 @@ pip install savReaderWriter
 
 ```
 
+Sample usage to verify that data has loaded correctly:
+```
+from load_files import *
+survey = SurveyReader("../ENAHO/")
+survey.read_files()
+reporter = Reporter(survey)
+yearly_modules = reporter.yearly_modules()
+yearly_cols = reporter.modules_dims("cols")
+yearly_rows = reporter.modules_dims("rows")
+```
+
+Ensure that all years have files for all modules
+Check that all surveys' .sav filename is reasonable
+Check rows and columns for all surveys that they are within similar size
+Check all the questions made yearly for a module
+Check all the common questions for a module in all years
+Report of all questions labels
+Filtering .sav files per module
+Reading data dictionary
+Translating questions using Google Docs translate feature (Via CSV, spreadsheet)
+Modules that need special treatment bc files are split
+
+
 
 ## Caveats
 
@@ -65,6 +88,7 @@ done
 ```
 
 And then manually fix a few folders manually.
+
 
 
 [1] ENAHO - Encuesta Nacional de Hogares
