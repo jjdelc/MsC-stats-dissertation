@@ -19,12 +19,14 @@ pip install matplotlib
 pip install seaborn
 pip install pyreadstat
 pip install savReaderWriter
+pip install statsmodels
 
 ```
 
 Sample usage to verify that data has loaded correctly:
 ```
-from load_files import *
+from survey import SurveyReader
+from reporter import Reporter
 survey = SurveyReader("../ENAHO/")
 survey.read_files()
 reporter = Reporter(survey)
@@ -44,6 +46,13 @@ Reading data dictionary
 Translating questions using Google Docs translate feature (Via CSV, spreadsheet)
 Modules that need special treatment bc files are split
 
+
+Statsmodel
+https://www.statsmodels.org/stable/gettingstarted.html
+For linear regressions
+
+ENAHO papers
+https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=Peru+ENAHO&btnG=
 
 
 ## Caveats
@@ -92,3 +101,21 @@ And then manually fix a few folders manually.
 
 
 [1] ENAHO - Encuesta Nacional de Hogares
+
+
+
+# Literacy review
+
+Poverty, Household Structure and Consumption of Foods Away from Home in Peru in 2019: A Cross-Sectional Study 
+https://www.mdpi.com/2304-8158/11/17/2547
+
+
+Households with and without the presence of adolescents, probability of expenditure on food consumed away from home, according to
+ENAHO 2021: a cross-sectional study [version 1; peer review: 1 not approved] 
+https://f1000research.com/articles/12-1296
+
+Inequalities in access to safe drinking water in Peruvian households according to city size: an analysis from 2008 to 2018
+https://link.springer.com/article/10.1186/s12939-021-01466-7
+
+Measuring Out-of-pocket Payment, Catastrophic Health Expenditure and the Related Socioeconomic Inequality in Peru: A Comparison Between 2008 and 2017
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7411247/
