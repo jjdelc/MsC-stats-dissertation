@@ -1,129 +1,12 @@
 import os
+import typing as t
 from pathlib import Path
 from collections import defaultdict
-from typing import List
 
 import pandas as pd
 import pyreadstat
 
-MODULE_NAMES = {
-    "01": {
-        "modulo": "Características de la Vivienda y del Hogar",
-        "module": "Housing and Household Characteristics"
-    },
-    "02": {
-        "modulo": "Características de los Miembros del Hogar",
-        "module": "Household Members Characteristics"
-    },
-    "03": {
-        "modulo": "Educación",
-        "module": "Education"
-    },
-    "04": {
-        "modulo": "Salud",
-        "module": "Health"
-    },
-    "05": {
-        "modulo": "Empleo e Ingresos",
-        "module": "Employment and Income"
-    },
-    "07": {
-        "modulo": "Gastos en Alimentos y Bebidas (Módulo 601)",
-        "module": "Food and Beverage Expenditures (Module 601)"
-    },
-    "08": {
-        "modulo": "Instituciones Beneficas",
-        "module": "Charitable Institutions"
-    },
-    "09": {
-        "modulo": "Mantenimiento de la Vivienda",
-        "module": "Housing Maintenance"
-    },
-    "10": {
-        "modulo": "Transportes y Comunicaciones",
-        "module": "Transportation and Communications"
-    },
-    "11": {
-        "modulo": "Servicios a la Vivienda",
-        "module": "Housing Services"
-    },
-    "12": {
-        "modulo": "Esparcimiento, Diversion y Servicios de Cultura",
-        "module": "Recreation, Entertainment, and Cultural Services"
-    },
-    "13": {
-        "modulo": "Vestido y Calzado",
-        "module": "Clothing and Footwear"
-    },
-    "15": {
-        "modulo": "Gastos de Transferencias",
-        "module": "Transfer Expenditures"
-    },
-    "16": {
-        "modulo": "Muebles y Enseres",
-        "module": "Furniture and Equipment"
-    },
-    "17": {
-        "modulo": "Otros Bienes y Servicios",
-        "module": "Other Goods and Services"
-    },
-    "18": {
-        "modulo": "Equipamiento del Hogar",
-        "module": "Household Appliances"
-    },
-    "22": {
-        "modulo": "Producción Agrídcola",
-        "module": "Agricultural Production"
-    },
-    "23": {
-        "modulo": "Subproductos Agricolas",
-        "module": "Agricultural By-Products"
-    },
-    "24": {
-        "modulo": "Producción Forestal",
-        "module": "Forest Production"
-    },
-    "25": {
-        "modulo": "Gastos en Actividades Agricolas y/o Forestales",
-        "module": "Expenditures on Agricultural and/or Forestry Activities"
-    },
-    "26": {
-        "modulo": "Producción Pecuaria",
-        "module": "Livestock Production"
-    },
-    "27": {
-        "modulo": "Subproductos Pecuarios",
-        "module": "Livestock By-Products"
-    },
-    "28": {
-        "modulo": "Gastos en Actividades Pecuarias",
-        "module": "Expenditures on Livestock Activities"
-    },
-    "34": {
-        "modulo": "Sumarias (Variables Calculadas)",
-        "module": "Summaries (Calculated Variables)"
-    },
-    "37": {
-        "modulo": "Programas Sociales (Miembros del Hogar)",
-        "module": "Social Programs (Household Members)"
-    },
-    "77": {
-        "modulo": "Ingresos del Trabajador Independiente",
-        "module": "Self-Employed Income"
-    },
-    "78": {
-        "modulo": "Bienes y Servicios de Cuidados Personales",
-        "module": "Personal Care Goods and Services"
-    },
-    "84": {
-        "modulo": "Participación Ciudadana",
-        "module": "Citizen Participation"
-    },
-    "85": {
-        "modulo": "Gobernabilidad, Democracia y Transparencia",
-        "module": "Governance, Democracy, and Transparency"
-    }
-}
+from modules import MODULE_NAMES
 
 
 class SurveyFile:
@@ -165,16 +48,46 @@ class SurveyFile:
 
 
 class SurveyReader:
-    def __init__(self, root_dir):
+    """
+    This class will find all the .sav files from the unzipped ENAHO survey
+    files and make them available year, modules and columns.
+    """
+
+    def __init__(self, root_dir: str):
         self.root_dir = root_dir
         self._files = {}
 
     def read_files(self):
+        """
+        For all the survey SPSS files in the .root_dir, return the handlers
+        for all of them.
+
+        Note that this will only read the header of the files, not the full
+        bodies of them in order to remain speedy.
+        """
         spss_files = self.find_spss_files()
         spss_handlers = self.load_spss_files(spss_files)
         self._files = spss_handlers
 
-    def find_spss_files(self):
+    def find_spss_files(self) -> t.Dict[str, t.List[str]]:
+        """
+        Traverses all the deeply nested directories inside the .root_dir,
+        since each of the first level directories has the name corresponding
+        to the year, it will look for all the .sav files inside.
+
+        This contains the heuristics to filter out only the survey files
+        and not many of the other adjacent .sav files that come in the zip
+        files provided.
+
+        ./
+            <year>/
+                <module>/
+                    ENAHO...sav
+                    other_file.sav
+                    other_files.etc
+
+        Returns a dictionary keyed by year with a list of filenames.
+        """
         spss_files = defaultdict(list)
 
         # Iterate over self.root_dir
@@ -205,7 +118,7 @@ class SurveyReader:
                         if "ENAHO-TABLA" in filename:
                             continue
 
-                        # File 300A is an special annex for parents satisfaction
+                        # File 300A is a special annex for parents satisfaction
                         # about childrens education
                         # 602A contains questions for kids below 14 about meals
                         # obtained from beneficiaries outside of home
@@ -219,27 +132,27 @@ class SurveyReader:
                         if any(x in filename for x in excluded_files):
                             continue
 
-                        spss_files[year_dir].append(
-                            os.path.join(module_path, filename))
+                        spss_filepath = os.path.join(module_path, filename)
+                        spss_files[year_dir].append(spss_filepath)
                         break
 
         return spss_files
 
     @property
-    def years(self):
+    def years(self) -> t.List[str]:
         return sorted(self._files)
 
     @property
-    def available_modules(self):
+    def available_modules(self) -> t.List[str]:
         modules = set()
         for year in self.years:
             modules.update(self._files[year])
         return sorted(modules)
 
-    def modules(self, year):
+    def modules(self, year) -> t.List[str]:
         return sorted(self._files[year])
 
-    def strip_module(self, filename):
+    def strip_module(self, filename: str) -> str:
         """
         We know that module names have the following format:
             XXX-ModuloYY
@@ -248,7 +161,8 @@ class SurveyReader:
         module_name = Path(filename).parent.name
         return module_name.split("Modulo")[-1]
 
-    def load_spss_files(self, spss_files):
+    def load_spss_files(self, spss_files: t.Dict[str, t.List[str]]) -> t.Dict[
+        str, t.Dict[str, SurveyFile]]:
         spss_handlers = {}
         for year, filenames in spss_files.items():
             year_handlers = {}
@@ -259,7 +173,8 @@ class SurveyReader:
             spss_handlers[year] = year_handlers
         return spss_handlers
 
-    def get_file(self, year, module) -> SurveyFile:
+    def get_file(self, year: t.Union[str, int],
+                 module: t.Union[str, int]) -> SurveyFile:
         if not isinstance(year, str):
             year = str(year)  # "2022"
 
@@ -274,8 +189,8 @@ class SurveyReader:
         'AÑO', 'MES', 'CONGLOME', 'VIVIENDA', 'HOGAR', 'UBIGEO', 'DOMINIO'
     ]
 
-    def data_columns(self, module, q_names: List[str],
-                     include_demographics=True):
+    def data_columns(self, module, q_names: t.List[str],
+                     include_demographics=True) -> pd.DataFrame:
         """
         Returns a DataFrame with the stacking of the requested
         question for all files available.
