@@ -63,112 +63,110 @@ DATA_PATH = "./ENAHO/"
 
 
 def strip_link(line):
-	"""
-	For a matching line in the HTML table, strip the SPSS
-	.zip file link from the <a href> tag.
-	We can do this because we know the way the HTML is formatted
-	wich each <a> tag on a separate line.
+    """
+    For a matching line in the HTML table, strip the SPSS
+    .zip file link from the <a href> tag.
+    We can do this because we know the way the HTML is formatted
+    wich each <a> tag on a separate line.
 
-		<a href="/...spss...zip">...
+        <a href="/...spss...zip">...
 
-	"""
-	href = line.split('"')[1]
-	return urljoin(BASE_URL, href)
+    """
+    href = line.split('"')[1]
+    return urljoin(BASE_URL, href)
 
 
 def process_file(fh):
-	"""
-	Given a file-like object, in this case an Http Response
-	object, process only those lines that contain "/SPSS/"
-	on it. This hints that it is the HTML line that contains
-	the file link.
+    """
+    Given a file-like object, in this case an Http Response
+    object, process only those lines that contain "/SPSS/"
+    on it. This hints that it is the HTML line that contains
+    the file link.
 
-	Collect and return all these links
-	"""
-	
-	links = []
-	for line in fh.readlines():
-		# The INEI website returns HTML using in `latin-1` encoding
-		line = line.decode("latin-1")
-		if "/SPSS/" in line:
-			links.append(strip_link(line))
-	return links
+    Collect and return all these links
+    """
+
+    links = []
+    for line in fh.readlines():
+        # The INEI website returns HTML using in `latin-1` encoding
+        line = line.decode("latin-1")
+        if "/SPSS/" in line:
+            links.append(strip_link(line))
+    return links
 
 
 def build_request(year):
-	"""
-	Builds an HTTP Request POST object to download the table
-	containing the given year's survey files.
-	"""
-	request = Request(
-		url=urljoin(BASE_URL, FETCH_URL),
-		data=PAYLOAD.format(year).encode("utf-8"),
-		method="POST")
+    """
+    Builds an HTTP Request POST object to download the table
+    containing the given year's survey files.
+    """
+    request = Request(
+        url=urljoin(BASE_URL, FETCH_URL),
+        data=PAYLOAD.format(year).encode("utf-8"),
+        method="POST")
 
-	return request
+    return request
 
 
 def write_url_files(urls_per_year):
-	"""
-	Given a dictionary of urls per year, write them in the
-	{YEAR}/urls.txt file for each year,
+    """
+    Given a dictionary of urls per year, write them in the
+    {YEAR}/urls.txt file for each year,
 
-	Returns the list of files.
-	"""
-	year_files = []
-	for year, urls in urls_per_year.items():
-		output_file = join(DATA_PATH, "{}/urls.txt".format(year))
-		with open(output_file, "w") as fh:
-			fh.write("\n".join(urls))
-			fh.write("\n")  # Extra EOL
-		year_files.append((year, output_file))
-	return year_files
+    Returns the list of files.
+    """
+    year_files = []
+    for year, urls in urls_per_year.items():
+        output_file = join(DATA_PATH, "{}/urls.txt".format(year))
+        with open(output_file, "w") as fh:
+            fh.write("\n".join(urls))
+            fh.write("\n")  # Extra EOL
+        year_files.append((year, output_file))
+    return year_files
 
 
 def download_year_files(year_files):
-	"""
-	Returns the list of `wget` commands to
-	download these files.
-	"""
+    """
+    Returns the list of `wget` commands to
+    download these files.
+    """
 
-	# -i argument for the URLs input file
-	# -P parameter for output directory
-	WGET = "wget -i {} -P {}"
-	commands = []
-	for year, year_file in year_files:
-		commands.append(WGET.format(year_file, join(DATA_PATH, year)))
-	
-	return commands
+    # -i argument for the URLs input file
+    # -P parameter for output directory
+    WGET = "wget -i {} -P {}"
+    commands = []
+    for year, year_file in year_files:
+        commands.append(WGET.format(year_file, join(DATA_PATH, year)))
+    
+    return commands
 
 
 def fetch_yearly_spss_urls(years):
-	"""
-	Given a list of years, return a dictionary keyed by each
-	year that contains the list of the URLs for the survey's
-	associated SPSS files.
+    """
+    Given a list of years, return a dictionary keyed by each
+    year that contains the list of the URLs for the survey's
+    associated SPSS files.
 
-	For each year, makes an HTTP request and parses the response
-	body searching only for the SPSS file links.
-	"""
-	urls_per_year = {}
+    For each year, makes an HTTP request and parses the response
+    body searching only for the SPSS file links.
+    """
+    urls_per_year = {}
 
-	for year in years:
-		logging.info("Processing year: {}".format(year))
-		resp = urlopen(build_request(year))
-		urls_per_year[year] = process_file(resp)
+    for year in years:
+        logging.info("Processing year: {}".format(year))
+        resp = urlopen(build_request(year))
+        urls_per_year[year] = process_file(resp)
 
-	return urls_per_year
+    return urls_per_year
 
 
 if __name__ == "__main__":
-	years = sys.argv[1:]
+    years = sys.argv[1:]
 
-	# Extract URLs from survey website	
-	urls_per_year = fetch_yearly_spss_urls(years)
+    # Extract URLs from survey website    
+    urls_per_year = fetch_yearly_spss_urls(years)
 
-	# Prepare download commands
-	year_files = write_url_files(urls_per_year)
-	download_commands = download_year_files(year_files)
-	print("\n".join(download_commands))
-
-
+    # Prepare download commands
+    year_files = write_url_files(urls_per_year)
+    download_commands = download_year_files(year_files)
+    print("\n".join(download_commands))
