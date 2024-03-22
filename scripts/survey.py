@@ -1,4 +1,3 @@
-import os
 import typing as t
 from pathlib import Path
 from collections import defaultdict
@@ -7,11 +6,12 @@ import pandas as pd
 import pyreadstat
 
 from modules import MODULE_NAMES
+from find_files import find_spss_files
 
 
 class SurveyFile:
     """
-    This class holds a individual SPSS file.
+    This class holds an individual SPSS file.
     Will do a bare minimal read by default, and only
     do a full file read if required for a data frame.
     """
@@ -46,6 +46,13 @@ class SurveyFile:
                 1]
         return self._meta
 
+    def labels_for_question(self, question_name: str) -> t.Dict[str, str]:
+        """
+        Given a question name, return the dictionary of the labels for each
+        of the categorical answers of it.
+        """
+        return self._meta.variable_value_labels[question_name]
+
 
 class SurveyReader:
     """
@@ -59,100 +66,50 @@ class SurveyReader:
 
     def read_files(self):
         """
-        For all the survey SPSS files in the .root_dir, return the handlers
-        for all of them.
+        For all the survey SPSS files in the .root_dir, load their handlers.
 
         Note that this will only read the header of the files, not the full
         bodies of them in order to remain speedy.
         """
-        spss_files = self.find_spss_files()
-        spss_handlers = self.load_spss_files(spss_files)
-        self._files = spss_handlers
-
-    def find_spss_files(self) -> t.Dict[str, t.List[str]]:
-        """
-        Traverses all the deeply nested directories inside the .root_dir,
-        since each of the first level directories has the name corresponding
-        to the year, it will look for all the .sav files inside.
-
-        This contains the heuristics to filter out only the survey files
-        and not many of the other adjacent .sav files that come in the zip
-        files provided.
-
-        ./
-            <year>/
-                <module>/
-                    ENAHO...sav
-                    other_file.sav
-                    other_files.etc
-
-        Returns a dictionary keyed by year with a list of filenames.
-        """
-        spss_files = defaultdict(list)
-
-        # Iterate over self.root_dir
-        for year_dir in os.listdir(self.root_dir):
-            if len(year_dir) != 4:
-                # Not a year, skip it
-                continue
-
-            year_path = os.path.join(self.root_dir, year_dir)
-            if os.path.isdir(year_path):
-
-                # Inside each year, iterate over the module folders
-                for module_name in os.listdir(year_path):
-                    module_path = os.path.join(year_path, module_name)
-                    if not os.path.isdir(module_path):
-                        continue
-
-                    # For each module folder, find the first(only) .sav file
-                    for filename in os.listdir(module_path):
-                        # Some heuristics to determine the correct .sav file
-                        # to read on each module because many directories
-                        # contain extra support .sav files
-                        if not filename.endswith('.sav'):
-                            continue
-
-                        if "AGROPECUARIO" in filename:
-                            continue
-                        if "ENAHO-TABLA" in filename:
-                            continue
-
-                        # File 300A is a special annex for parents satisfaction
-                        # about childrens education
-                        # 602A contains questions for kids below 14 about meals
-                        # obtained from beneficiaries outside of home
-                        # 2000A are details about fish livestock activities
-                        # 700A are details about food help obtained (if any)
-                        # 700B are details about non-food help obtained (if any)
-                        excluded_files = [
-                            "300A", "300a", "602A", "602a", "2000A", "2000a",
-                            "700A", "700B", "700a", "700b"
-                        ]
-                        if any(x in filename for x in excluded_files):
-                            continue
-
-                        spss_filepath = os.path.join(module_path, filename)
-                        spss_files[year_dir].append(spss_filepath)
-                        break
-
-        return spss_files
+        spss_files = find_spss_files(self.root_dir)
+        spss_handlers_by_year = self.load_spss_files(spss_files)
+        self._files = spss_handlers_by_year
 
     @property
     def years(self) -> t.List[str]:
+        """
+        Returns list of sorted years (as strings) that this survey contains
+        based on the available directories inside ENAHO root_dir.
+        """
         return sorted(self._files)
 
-    @property
+    def modules_per_year(self) -> t.Dict[str, t.Set[str]]:
+        """
+        Returns a dictionary keyed by year, with the set of available modules
+        for each year.
+        """
+        years = self.years
+        yearly_modules = {y: set(self.modules(y)) for y in years}
+        return yearly_modules
+
     def available_modules(self) -> t.List[str]:
+        """
+        Returns a sorted list of the modules codes (strings) that this survey
+        contains through all the years. This is the accumulation of present
+        modules.
+        """
         modules = set()
         for year in self.years:
             modules.update(self._files[year])
         return sorted(modules)
 
     def modules(self, year) -> t.List[str]:
+        """
+        Returns the sorted list of string module codes available in a given year
+        """
         return sorted(self._files[year])
 
-    def strip_module(self, filename: str) -> str:
+    def module_from_filename(self, filename: str) -> str:
         """
         We know that module names have the following format:
             XXX-ModuloYY
@@ -161,20 +118,26 @@ class SurveyReader:
         module_name = Path(filename).parent.name
         return module_name.split("Modulo")[-1]
 
-    def load_spss_files(self, spss_files: t.Dict[str, t.List[str]]) -> t.Dict[
-        str, t.Dict[str, SurveyFile]]:
-        spss_handlers = {}
+    def load_spss_files(
+            self, spss_files: t.Dict[str, t.List[str]]
+    ) -> t.Dict[str, t.Dict[str, SurveyFile]]:
+        """
+        Returns a doubly nested dictionary. First by year, and then by module
+        pointing to the associated SurveyFile.
+        """
+        yearly_spss_handlers = {}
         for year, filenames in spss_files.items():
             year_handlers = {}
             for fn in filenames:
-                module = self.strip_module(fn)
+                module = self.module_from_filename(fn)
                 year_handlers[module] = SurveyFile(year, module, fn)
 
-            spss_handlers[year] = year_handlers
-        return spss_handlers
+            yearly_spss_handlers[year] = year_handlers
+        return yearly_spss_handlers
 
-    def get_file(self, year: t.Union[str, int],
-                 module: t.Union[str, int]) -> SurveyFile:
+    def get_file(
+            self, year: t.Union[str, int], module: t.Union[str, int]
+    ) -> SurveyFile:
         if not isinstance(year, str):
             year = str(year)  # "2022"
 
@@ -189,8 +152,10 @@ class SurveyReader:
         'AÑO', 'MES', 'CONGLOME', 'VIVIENDA', 'HOGAR', 'UBIGEO', 'DOMINIO'
     ]
 
-    def data_columns(self, module, q_names: t.List[str],
-                     include_demographics=True) -> pd.DataFrame:
+    def data_columns(
+            self, module, q_names: t.List[str],
+            include_demographics: bool = True
+    ) -> pd.DataFrame:
         """
         Returns a DataFrame with the stacking of the requested
         question for all files available.
@@ -205,10 +170,46 @@ class SurveyReader:
 
         for year in self.years:
             survey_file = self.get_file(year, module)
-            try:
-                segments.append(survey_file.data[columns])
-            except KeyError:
-                raise KeyError(year)
+            segments.append(survey_file.data[columns])
 
         result = pd.concat(segments, ignore_index=True)
         return result
+
+    def value_labels(self, module: str, q_names: t.List[str]) -> t.Dict[
+        str, t.Dict[str, str]]:
+        """
+        Given a list of question name strings (narrowed down by their associated
+        module). Return a dictionary keyed by question containing all the
+        labels associated with each question.
+
+        {
+            Q_1: {
+                1: "label for answer coded 1 in Q1",
+                2: "label for answer coded 2 in Q1",
+            },
+            Q_2: {
+                1: "label for answer coded 1 in Q2",
+                2: "label for answer coded 2 in Q2",
+            },
+        }
+        """
+        q_name_labels = defaultdict(list)
+        # This will raise error if requesting questions for the wrong module
+        module_files = [self.get_file(year, module) for year in self.years]
+
+        for mod_file in module_files:
+            # Accumulate all the values for these questions through all the
+            # years we want to detect if they changed.
+            for q_name in q_names:
+                q_name_labels[q_name].append(
+                    mod_file.labels_for_question(q_name))
+
+        final_q_names = {}
+        for q_name, yearly_labels in q_name_labels.items():
+            q_labels = {}
+            # Here we should be detecting if they changed or not.
+            for y_label in yearly_labels:
+                q_labels.update(y_label)
+            final_q_names[q_name] = q_labels
+
+        return final_q_names

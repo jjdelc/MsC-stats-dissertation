@@ -2,10 +2,12 @@ from collections import defaultdict
 
 import pandas as pd
 
+from survey import SurveyReader
+
 
 class Reporter:
-    def __init__(self, survey):
-        self.survey = survey
+    def __init__(self, survey: SurveyReader):
+        self.survey: SurveyReader = survey
 
     def yearly_modules(self):
         """
@@ -13,10 +15,8 @@ class Reporter:
         which modules are present in each year.
         """
         years = self.survey.years
-        yearly_modules = {y: set(self.survey.modules(y)) for y in years}
-        all_modules = list(yearly_modules.values())
-        all_modules = {val for sublist in all_modules for val in sublist}
-        all_modules = sorted(all_modules)
+        yearly_modules = self.survey.modules_per_year()
+        all_modules = self.survey.available_modules()
 
         data = {"modulo": all_modules}
         data.update({y: [] for y in years})
@@ -34,10 +34,7 @@ class Reporter:
         dimension for each module survey.
         """
         years = self.survey.years
-        yearly_modules = {y: set(self.survey.modules(y)) for y in years}
-        all_modules = list(yearly_modules.values())
-        all_modules = {val for sublist in all_modules for val in sublist}
-        all_modules = sorted(all_modules)
+        all_modules = self.survey.available_modules()
 
         data = {"modulo": all_modules}
         data.update({y: [] for y in years})
@@ -105,17 +102,26 @@ class Reporter:
                                in col_2_label.items()}
                 questions_by_module[module].update(col_2_label)
 
-        data = [["Module", "Q. Name", "Q. Label"]]
+        labels, modules = {}, {}
         for module, question_labels in questions_by_module.items():
-            for q_name, q_label in sorted(question_labels.items()):
-                row = [module, q_name, q_label]
-                data.append(row)
+            for q_name, q_label in question_labels.items():
+                labels[q_name] = q_label
+                modules[q_name] = module
+
+        return labels, modules
+
+    def all_questions_csv(self):
+        rows_data = [["Module", "Q. Name", "Q. Label"]]
+        labels, modules = self.all_questions()
+        all_questions = sorted(labels)
+        for q_name in all_questions:
+            rows_data.append([modules[q_name], q_name, labels[q_name]])
 
         from io import StringIO
         fh = StringIO()
         from csv import writer
         w = writer(fh)
-        w.writerows(data)
+        w.writerows(rows_data)
         fh.seek(0)
         return fh
 
