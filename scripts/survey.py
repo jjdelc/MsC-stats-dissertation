@@ -60,8 +60,9 @@ class SurveyReader:
     files and make them available year, modules and columns.
     """
 
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, exclude_years=None):
         self.root_dir = root_dir
+        self.exclude_years = exclude_years
         self._files = {}
 
     def read_files(self):
@@ -72,6 +73,8 @@ class SurveyReader:
         bodies of them in order to remain speedy.
         """
         spss_files = find_spss_files(self.root_dir)
+        if self.exclude_years:
+            spss_files = {year: _f for year, _f in spss_files.items() if year not in self.exclude_years}
         spss_handlers_by_year = self.load_spss_files(spss_files)
         self._files = spss_handlers_by_year
 
@@ -170,7 +173,11 @@ class SurveyReader:
 
         for year in self.years:
             survey_file = self.get_file(year, module)
-            segments.append(survey_file.data[columns])
+            try:
+                segments.append(survey_file.data[columns])
+            except KeyError as err:
+                msg = f"Questions not available in year {year}"
+                raise ValueError(msg)
 
         result = pd.concat(segments, ignore_index=True)
         return result
