@@ -5,8 +5,8 @@ from collections import defaultdict
 import pandas as pd
 import pyreadstat
 
-from modules import MODULE_NAMES
-from find_files import find_spss_files
+from .modules import MODULE_NAMES
+from .find_files import find_spss_files
 
 
 class SurveyFile:
@@ -183,6 +183,8 @@ class SurveyReader:
                 raise ValueError(msg)
 
         result = pd.concat(segments, ignore_index=True)
+        if include_demographics:
+            result["PERIODO"] = result["AÑO"] + result["MES"]
         return result
 
     def value_labels(self, module: str, q_names: t.List[str]) -> t.Dict[
