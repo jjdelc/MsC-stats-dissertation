@@ -41,13 +41,15 @@ wget -i ./2010/urls.txt -P 2010
 
 import sys
 import logging
+import typing as t
+from pathlib import Path
 from os.path import join
 from urllib.parse import urljoin
 from urllib.request import urlopen, Request
 
 logging.basicConfig(level=logging.INFO)
 
-# Contant of the INEI domain where all files are placed
+# Constant of the INEI domain where all files are placed
 BASE_URL = "https://proyectos.inei.gob.pe/"
 
 # This is the path to make a request to fetch the table
@@ -58,16 +60,16 @@ FETCH_URL = "/microdatos/cambiaPeriodo.asp"
 # year added to obtain the files table from FETCH_URL
 PAYLOAD = "bandera=1&_cmbEncuesta=Condiciones%20de%20Vida%20y%20Pobreza%20-%20ENAHO&_cmbAnno={}&_cmbTrimestre=55"
 
-# The folder where the data will be downloaded
-DATA_PATH = "./ENAHO/"
+# The folder where the data will be downloaded.
+DATA_PATH = "../ENAHO/"  # Relative to this file.
 
 
-def strip_link(line):
+def strip_link(line: str) -> str:
     """
     For a matching line in the HTML table, strip the SPSS
     .zip file link from the <a href> tag.
     We can do this because we know the way the HTML is formatted
-    wich each <a> tag on a separate line.
+    which each <a> tag on a separate line.
 
         <a href="/...spss...zip">...
 
@@ -76,14 +78,14 @@ def strip_link(line):
     return urljoin(BASE_URL, href)
 
 
-def process_file(fh):
+def process_file(fh) -> t.List[str]:
     """
     Given a file-like object, in this case an Http Response
     object, process only those lines that contain "/SPSS/"
     on it. This hints that it is the HTML line that contains
     the file link.
 
-    Collect and return all these links
+    Collect and return all these URLs
     """
 
     links = []
@@ -95,7 +97,7 @@ def process_file(fh):
     return links
 
 
-def build_request(year):
+def build_request_for_year(year: str) -> Request:
     """
     Builds an HTTP Request POST object to download the table
     containing the given year's survey files.
@@ -108,16 +110,23 @@ def build_request(year):
     return request
 
 
-def write_url_files(urls_per_year):
+def write_url_files(urls_per_year) -> t.List[t.Tuple[str, str]]:
     """
     Given a dictionary of urls per year, write them in the
     {YEAR}/urls.txt file for each year,
 
-    Returns the list of files.
+    `urls_per_year` is a dictionary keyed by year, where each value is a list
+    of URLs.
+
+    Returns the list of tuples (year, file) one line per year.
     """
     year_files = []
     for year, urls in urls_per_year.items():
-        output_file = join(DATA_PATH, "{}/urls.txt".format(year))
+        # Ensure the output directory exists
+        output_dir = Path(join(DATA_PATH, year))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        output_file = join(DATA_PATH, f"{year}/urls.txt")
         with open(output_file, "w") as fh:
             fh.write("\n".join(urls))
             fh.write("\n")  # Extra EOL
@@ -125,23 +134,24 @@ def write_url_files(urls_per_year):
     return year_files
 
 
-def download_year_files(year_files):
+def download_year_files(year_files: t.List[t.Tuple[str, str]]) -> t.List[str]:
     """
-    Returns the list of `wget` commands to
-    download these files.
+    `year_files` is a list for each year and urls.txt file.
+
+    Returns the list of `wget` commands to download these files.
     """
 
     # -i argument for the URLs input file
     # -P parameter for output directory
-    WGET = "wget -i {} -P {}"
+    wget_cmd = "wget -i {} -P {}"
     commands = []
     for year, year_file in year_files:
-        commands.append(WGET.format(year_file, join(DATA_PATH, year)))
+        commands.append(wget_cmd.format(year_file, join(DATA_PATH, year)))
     
     return commands
 
 
-def fetch_yearly_spss_urls(years):
+def fetch_yearly_spss_urls(years: t.List[str]) -> t.Dict[str, t.List[str]]:
     """
     Given a list of years, return a dictionary keyed by each
     year that contains the list of the URLs for the survey's
@@ -153,20 +163,27 @@ def fetch_yearly_spss_urls(years):
     urls_per_year = {}
 
     for year in years:
-        logging.info("Processing year: {}".format(year))
-        resp = urlopen(build_request(year))
-        urls_per_year[year] = process_file(resp)
+        logging.info(f"Processing year: {year}")
+        resp = urlopen(build_request_for_year(year))
+        urls_per_year[year]: t.List[str] = process_file(resp)
 
     return urls_per_year
 
 
-if __name__ == "__main__":
-    years = sys.argv[1:]
+def main():
+    years: t.List[str] = sys.argv[1:]
+    if not years:
+        logging.error("Please provide at least one year, space separated")
+        sys.exit(1)
 
-    # Extract URLs from survey website    
-    urls_per_year = fetch_yearly_spss_urls(years)
+    # Extract URLs from survey website
+    urls_per_year: t.Dict[str, t.List[str]] = fetch_yearly_spss_urls(years)
 
     # Prepare download commands
     year_files = write_url_files(urls_per_year)
-    download_commands = download_year_files(year_files)
+    download_commands: t.List[str] = download_year_files(year_files)
     print("\n".join(download_commands))
+
+
+if __name__ == "__main__":
+    main()
