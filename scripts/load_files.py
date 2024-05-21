@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
-import sys
-
-from survey import SurveyReader
-from reporter import Reporter
+from code.survey import SurveyReader
+from code.reporter import Reporter
 
 
 DATA_DIR = "../ENAHO/"
