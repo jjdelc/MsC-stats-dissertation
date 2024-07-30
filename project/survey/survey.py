@@ -155,12 +155,20 @@ class SurveyReader:
     # These demographic columns are common in all survey files. These can be
     # used to perform joins.
     DEMOGRAPHIC_COLUMNS = [
-        'AÑO', 'MES', 'CONGLOME', 'VIVIENDA', 'HOGAR', 'UBIGEO', 'DOMINIO'
+        "AÑO",
+        "MES",
+        "UBIGEO",
+        "CONGLOME",
+        "VIVIENDA",
+        "HOGAR",
+        "DOMINIO",
+        "ESTRATO",
     ]
 
     def data_columns(
             self, module, q_names: t.List[str],
-            include_demographics: bool = True
+            include_demographics: bool = True,
+            include_keys: bool = True
     ) -> pd.DataFrame:
         """
         Returns a DataFrame with the stacking of the requested
@@ -168,10 +176,22 @@ class SurveyReader:
 
         if `include_demographics` is True, the necessary demographics
         questions will be included.
+
+        If `drop_incomplete` is True, the rows where the `RESULT` column has
+        value != 1 which means non-complete (for multiple reasons)
         """
         columns = q_names[:]
-        if include_demographics:
-            columns = self.DEMOGRAPHIC_COLUMNS + columns
+        # Modules that are only at house level, not per person
+        not_per_person_modules = ["01", "18", "34"]
+        per_person_module = module not in not_per_person_modules
+        if per_person_module:
+            # Modules that are not
+            dem_cols = self.DEMOGRAPHIC_COLUMNS + ["CODPERSO"]
+        else:
+            dem_cols = self.DEMOGRAPHIC_COLUMNS
+
+        if include_demographics or include_keys:
+            columns = dem_cols + columns
         segments = []
 
         for year in self.years:
@@ -179,16 +199,34 @@ class SurveyReader:
             try:
                 segments.append(survey_file.data[columns])
             except KeyError as err:
-                msg = f"Questions not available in year {year}"
+                extra_questions = set(columns).difference(survey_file.data)
+                extra_questions = ", ".join(sorted(extra_questions))
+                msg = f"Questions not available in year {year}: {extra_questions}"
                 raise ValueError(msg)
 
-        result = pd.concat(segments, ignore_index=True)
+        result = pd.concat(segments, ignore_index=True, verify_integrity=True)
+        result.reset_index(drop=True)
+
+        if include_keys:
+            # This is the house ID to identify the same household across
+            # multiple survey files. Note that this is not unique in the same
+            # file, but can represent multiple individuals entries in the same
+            # house.
+            result["HOUSE_KEY"] = result["AÑO"] + result["MES"] + result["CONGLOME"] + result["VIVIENDA"] + result["HOGAR"]
+            if per_person_module:
+                result["PERSON_KEY"] = result["HOUSE_KEY"] + result["CODPERSO"]
+
         if include_demographics:
+            # Concatenate a unique PERIOD column with format YYYYMM
             result["PERIODO"] = result["AÑO"] + result["MES"]
+            # This boolean column indicates urban vs rural area
+            result["RURAL"] = result["ESTRATO"] >= 7
+        else:
+            result.drop(dem_cols, axis=1, inplace=True)
+
         return result
 
-    def value_labels(self, module: str, q_names: t.List[str]) -> t.Dict[
-        str, t.Dict[str, str]]:
+    def value_labels(self, module: str, q_names: t.List[str]) -> t.Dict[str, t.Dict[str, str]]:
         """
         Given a list of question name strings (narrowed down by their associated
         module). Return a dictionary keyed by question containing all the

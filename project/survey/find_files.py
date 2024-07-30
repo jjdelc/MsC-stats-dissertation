@@ -61,7 +61,7 @@ def find_spss_files(root_dir) -> t.Dict[str, t.List[str]]:
                     # 700B are details about non-food help obtained (if any)
                     excluded_files = [
                         "300A", "300a", "602A", "602a", "2000A", "2000a",
-                        "700A", "700B", "700a", "700b"
+                        "700A", "700B", "700a", "700b", "613", "613H"
                     ]
                     if any(x in filename for x in excluded_files):
                         continue
