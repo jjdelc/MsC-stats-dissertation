@@ -5,9 +5,7 @@ Computation of use of telecenters per domain in Peru 2023 using ENAHO database.
 from survey.survey import SurveyReader
 from constants import STUDY_YEARS
 
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 DATA_DIR = "../ENAHO"
 
 survey = SurveyReader(DATA_DIR, include_years=STUDY_YEARS)
