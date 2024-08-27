@@ -36,13 +36,6 @@ formula_d <- "digital_poor ~ age_groups + domain_fac + log_income + educ_recode 
 formula_e <- "digital_poor ~ age_groups + domain + log_income + educ_recode + gender"
 formula_f <- "digital_poor ~ age_groups + domain + social_level + educ_recode + gender"
 
-# gologit <- vglm(formula,
-#                  cumulative(link = 'logitlink', parallel = FALSE),
-#                  data = train_set)
-# parallel <- vglm(digital_poor ~ age_groups + domain + social_level + educ_recode + gender,
-#                  cumulative(link = 'logitlink', parallel = TRUE),
-#                  data = train_set)
-
 model_a = vglm(formula_a,
                 cumulative(link = 'logitlink', parallel = FALSE),
                 data = train_set)
