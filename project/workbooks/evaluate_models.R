@@ -128,3 +128,10 @@ for (i in 1:length(split_by_domain)) {
   cat("Accuracy:", accuracies[i], "\n")
 }
 
+fitted_probs <- fitted(model_c)
+residuals1 <- (observed_bin1 - fitted_probs[,1])
+residuals2 <- (observed_bin2 - fitted_probs[,2])
+residuals3 <- (observed_bin3 - fitted_probs[,3])
+hist(residuals1, 100)
+hist(residuals2, 100)
+hist(residuals3, 100)
