@@ -2,12 +2,10 @@ from collections import defaultdict
 
 import pandas as pd
 
-from survey import SurveyReader
-
 
 class Reporter:
-    def __init__(self, survey: SurveyReader):
-        self.survey: SurveyReader = survey
+    def __init__(self, survey):
+        self.survey = survey
 
     def yearly_modules(self):
         """
